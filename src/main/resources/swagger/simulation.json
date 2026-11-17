@@ -1,0 +1,1118 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "말사이 시뮬레이션 API",
+    "version": "1.0.0",
+    "description": "요청마다 충돌 정리 결과와 필요한 대화 내역을 전달합니다. 서버는 대화를 저장하지 않습니다. 요청 본문은 최대 96 KiB입니다."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/v1/simulations/start": {
+      "post": {
+        "tags": [
+          "시뮬레이션"
+        ],
+        "operationId": "startSimulation",
+        "summary": "시뮬레이션 시작",
+        "description": "충돌 정리 결과를 바탕으로 상대가 먼저 건넬 말을 생성합니다.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "setup"
+                ],
+                "properties": {
+                  "setup": {
+                    "$ref": "#/components/schemas/Setup"
+                  }
+                }
+              },
+              "example": {
+                "setup": {
+                  "userName": "연주",
+                  "contact": {
+                    "name": "민지 선배",
+                    "relationCategory": "SENIOR"
+                  },
+                  "situationType": "GENERAL_REQUEST",
+                  "goal": "가능한 시간과 업무 범위를 분명히 전달하기",
+                  "conflictContext": {
+                    "summary": {
+                      "requestContent": "행사 정산 자료 정리"
+                    },
+                    "responseType": "CONDITIONAL",
+                    "availableCondition": "토요일 오전 두 시간",
+                    "relatedSchedules": []
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "입력값 또는 JSON이 올바르지 않습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "입력값 또는 JSON이 올바르지 않습니다."
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문은 최대 96 KiB입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "요청 본문은 최대 96 KiB입니다."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_BUSY",
+                    "message": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AI 응답을 처리하지 못했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_ERROR",
+                    "message": "AI 응답을 처리하지 못했습니다."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI 응답 시간이 초과됐습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_TIMEOUT",
+                    "message": "AI 응답 시간이 초과됐습니다."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/chat": {
+      "post": {
+        "tags": [
+          "시뮬레이션"
+        ],
+        "operationId": "chatSimulation",
+        "summary": "대화 이어가기",
+        "description": "첫 AI 메시지를 포함한 전체 대화를 보내고 마지막 발화는 USER로 둡니다. 종료 시 마지막 AI 답변을 표시한 뒤 리포트를 요청하세요.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "setup",
+                  "messages"
+                ],
+                "properties": {
+                  "setup": {
+                    "$ref": "#/components/schemas/Setup"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Message"
+                    },
+                    "minItems": 1,
+                    "maxItems": 41
+                  }
+                }
+              },
+              "example": {
+                "setup": {
+                  "userName": "연주",
+                  "contact": {
+                    "name": "민지 선배",
+                    "relationCategory": "SENIOR"
+                  },
+                  "situationType": "GENERAL_REQUEST",
+                  "goal": "가능한 시간과 업무 범위를 분명히 전달하기",
+                  "conflictContext": {
+                    "summary": {
+                      "requestContent": "행사 정산 자료 정리"
+                    },
+                    "responseType": "CONDITIONAL",
+                    "availableCondition": "토요일 오전 두 시간",
+                    "relatedSchedules": []
+                  }
+                },
+                "messages": [
+                  {
+                    "sender": "AI",
+                    "content": "연주야, 행사 정산 자료 정리 좀 도와줄 수 있어?"
+                  },
+                  {
+                    "sender": "USER",
+                    "content": "토요일 오전 두 시간만 자료 정리를 도와드릴 수 있어요."
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "입력값 또는 JSON이 올바르지 않습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "입력값 또는 JSON이 올바르지 않습니다."
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문은 최대 96 KiB입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "요청 본문은 최대 96 KiB입니다."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_BUSY",
+                    "message": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AI 응답을 처리하지 못했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_ERROR",
+                    "message": "AI 응답을 처리하지 못했습니다."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI 응답 시간이 초과됐습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_TIMEOUT",
+                    "message": "AI 응답 시간이 초과됐습니다."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/hints": {
+      "post": {
+        "tags": [
+          "시뮬레이션"
+        ],
+        "operationId": "hintsSimulation",
+        "summary": "답변 힌트 받기",
+        "description": "전체 대화를 보내고 마지막 발화는 AI로 둡니다.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "setup",
+                  "messages"
+                ],
+                "properties": {
+                  "setup": {
+                    "$ref": "#/components/schemas/Setup"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Message"
+                    },
+                    "minItems": 1,
+                    "maxItems": 41
+                  }
+                }
+              },
+              "example": {
+                "setup": {
+                  "userName": "연주",
+                  "contact": {
+                    "name": "민지 선배",
+                    "relationCategory": "SENIOR"
+                  },
+                  "situationType": "GENERAL_REQUEST",
+                  "goal": "가능한 시간과 업무 범위를 분명히 전달하기",
+                  "conflictContext": {
+                    "summary": {
+                      "requestContent": "행사 정산 자료 정리"
+                    },
+                    "responseType": "CONDITIONAL",
+                    "availableCondition": "토요일 오전 두 시간",
+                    "relatedSchedules": []
+                  }
+                },
+                "messages": [
+                  {
+                    "sender": "AI",
+                    "content": "연주야, 행사 정산 자료 정리 좀 도와줄 수 있어?"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HintsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "입력값 또는 JSON이 올바르지 않습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "입력값 또는 JSON이 올바르지 않습니다."
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문은 최대 96 KiB입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "요청 본문은 최대 96 KiB입니다."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_BUSY",
+                    "message": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AI 응답을 처리하지 못했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_ERROR",
+                    "message": "AI 응답을 처리하지 못했습니다."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI 응답 시간이 초과됐습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_TIMEOUT",
+                    "message": "AI 응답 시간이 초과됐습니다."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/report": {
+      "post": {
+        "tags": [
+          "시뮬레이션"
+        ],
+        "operationId": "reportSimulation",
+        "summary": "피드백 리포트 생성",
+        "description": "최종 AI 답변까지 포함한 전체 대화와 종료 사유를 보냅니다. ALTERNATIVE는 조건부 수락의 평가 항목입니다.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "setup",
+                  "messages",
+                  "endReason"
+                ],
+                "properties": {
+                  "setup": {
+                    "$ref": "#/components/schemas/Setup"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Message"
+                    },
+                    "minItems": 1,
+                    "maxItems": 41
+                  },
+                  "endReason": {
+                    "type": "string",
+                    "example": "AI",
+                    "enum": [
+                      "AI",
+                      "USER",
+                      "MAX_TURNS"
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "setup": {
+                  "userName": "연주",
+                  "contact": {
+                    "name": "민지 선배",
+                    "relationCategory": "SENIOR"
+                  },
+                  "situationType": "GENERAL_REQUEST",
+                  "goal": "가능한 시간과 업무 범위를 분명히 전달하기",
+                  "conflictContext": {
+                    "summary": {
+                      "requestContent": "행사 정산 자료 정리"
+                    },
+                    "responseType": "CONDITIONAL",
+                    "availableCondition": "토요일 오전 두 시간",
+                    "relatedSchedules": []
+                  }
+                },
+                "messages": [
+                  {
+                    "sender": "AI",
+                    "content": "연주야, 행사 정산 자료 정리 좀 도와줄 수 있어?"
+                  },
+                  {
+                    "sender": "USER",
+                    "content": "토요일 오전 두 시간만 자료 정리를 도와드릴 수 있어요."
+                  },
+                  {
+                    "sender": "AI",
+                    "content": "좋아, 토요일 오전 두 시간만 부탁할게."
+                  }
+                ],
+                "endReason": "AI"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "입력값 또는 JSON이 올바르지 않습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "입력값 또는 JSON이 올바르지 않습니다."
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문은 최대 96 KiB입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "요청 본문은 최대 96 KiB입니다."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_BUSY",
+                    "message": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AI 응답을 처리하지 못했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_ERROR",
+                    "message": "AI 응답을 처리하지 못했습니다."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI 응답 시간이 초과됐습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_TIMEOUT",
+                    "message": "AI 응답 시간이 초과됐습니다."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Setup": {
+        "type": "object",
+        "required": [
+          "userName",
+          "contact",
+          "situationType",
+          "goal",
+          "conflictContext"
+        ],
+        "properties": {
+          "userName": {
+            "type": "string",
+            "example": "연주"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "situationType": {
+            "type": "string",
+            "example": "GENERAL_REQUEST",
+            "enum": [
+              "GENERAL_REQUEST",
+              "RE_PERSUASION"
+            ]
+          },
+          "goal": {
+            "type": "string",
+            "example": "가능한 시간만 알려주기"
+          },
+          "goalTag": {
+            "type": "string",
+            "example": "STATE_LIMIT",
+            "enum": [
+              "STATE_LIMIT",
+              "CLEAR_INTENT",
+              "HOLD_POSITION",
+              "RELATIONSHIP"
+            ],
+            "nullable": true
+          },
+          "conflictContext": {
+            "$ref": "#/components/schemas/ConflictContext"
+          }
+        }
+      },
+      "Contact": {
+        "type": "object",
+        "required": [
+          "name",
+          "relationCategory"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "상대 ID"
+          },
+          "name": {
+            "type": "string",
+            "example": "민지 선배"
+          },
+          "relationCategory": {
+            "type": "string",
+            "example": "SENIOR",
+            "enum": [
+              "SENIOR",
+              "COLLEAGUE",
+              "JUNIOR",
+              "FRIEND",
+              "PARTNER",
+              "FAMILY",
+              "OTHER"
+            ]
+          },
+          "relationDetail": {
+            "type": "string",
+            "example": "동아리 선배",
+            "nullable": true
+          },
+          "personalityTag": {
+            "type": "string",
+            "example": "PUSHY",
+            "enum": [
+              "PUSHY",
+              "EMOTIONAL",
+              "LOGICAL",
+              "GUILT_TRIP",
+              "COOL"
+            ],
+            "nullable": true
+          },
+          "speechStyle": {
+            "type": "string",
+            "example": "편한 반말",
+            "nullable": true
+          }
+        }
+      },
+      "ConflictContext": {
+        "type": "object",
+        "required": [
+          "summary",
+          "responseType",
+          "relatedSchedules"
+        ],
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/ConflictSummary"
+          },
+          "responseType": {
+            "type": "string",
+            "example": "CONDITIONAL",
+            "enum": [
+              "CONDITIONAL",
+              "ACCEPT",
+              "DECLINE"
+            ]
+          },
+          "availableCondition": {
+            "type": "string",
+            "example": "토요일 오전 두 시간",
+            "nullable": true
+          },
+          "relatedSchedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Schedule"
+            }
+          }
+        }
+      },
+      "ConflictSummary": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "counterpartName": {
+            "type": "string",
+            "example": "민지 선배",
+            "nullable": true
+          },
+          "relationCategory": {
+            "type": "string",
+            "example": "SENIOR",
+            "enum": [
+              "SENIOR",
+              "COLLEAGUE",
+              "JUNIOR",
+              "FRIEND",
+              "PARTNER",
+              "FAMILY",
+              "OTHER"
+            ],
+            "nullable": true
+          },
+          "relationDetail": {
+            "type": "string",
+            "example": "동아리 선배",
+            "nullable": true
+          },
+          "requestContent": {
+            "type": "string",
+            "example": "행사 정산 자료 정리",
+            "nullable": true
+          },
+          "deadlineText": {
+            "type": "string",
+            "example": "금요일까지",
+            "nullable": true
+          },
+          "deadlineAt": {
+            "type": "string",
+            "example": "2026-11-20T23:59:00+09:00",
+            "format": "date-time",
+            "nullable": true
+          },
+          "estimatedMinutes": {
+            "type": "integer",
+            "example": 120,
+            "nullable": true
+          },
+          "psychologicalContext": {
+            "type": "string",
+            "example": "거절하기 부담됨",
+            "nullable": true
+          },
+          "relatedScheduleIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "일정 ID"
+            }
+          }
+        }
+      },
+      "Schedule": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "repeatType"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "title": {
+            "type": "string",
+            "example": "중간고사"
+          },
+          "repeatType": {
+            "type": "string",
+            "example": "ONCE",
+            "enum": [
+              "ONCE",
+              "PERIOD",
+              "WEEKLY"
+            ]
+          },
+          "daysOfWeek": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "MON",
+              "enum": [
+                "MON",
+                "TUE",
+                "WED",
+                "THU",
+                "FRI",
+                "SAT",
+                "SUN"
+              ]
+            },
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-11-20",
+            "format": "date",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2026-11-20",
+            "format": "date",
+            "nullable": true
+          },
+          "startTime": {
+            "type": "string",
+            "example": "09:00",
+            "nullable": true
+          },
+          "endTime": {
+            "type": "string",
+            "example": "10:00",
+            "nullable": true
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "example": 60,
+            "nullable": true
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": [
+          "sender",
+          "content"
+        ],
+        "properties": {
+          "sender": {
+            "type": "string",
+            "example": "AI",
+            "enum": [
+              "AI",
+              "USER"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "example": "토요일 오전 두 시간만 가능해요.",
+            "minLength": 1,
+            "maxLength": 1500
+          }
+        }
+      },
+      "StartResponse": {
+        "type": "object",
+        "required": [
+          "firstAiMessage",
+          "maxTurns",
+          "suggestedReplies"
+        ],
+        "properties": {
+          "firstAiMessage": {
+            "type": "string",
+            "example": "연주야, 행사 정산 자료 정리 좀 도와줄 수 있어?"
+          },
+          "maxTurns": {
+            "type": "integer",
+            "example": 20
+          },
+          "suggestedReplies": {
+            "$ref": "#/components/schemas/SuggestedReplies"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "required": [
+          "aiMessage",
+          "shouldEnd",
+          "endReason",
+          "suggestedReplies"
+        ],
+        "properties": {
+          "aiMessage": {
+            "type": "string",
+            "example": "그럼 토요일 오전 두 시간만 부탁할게."
+          },
+          "shouldEnd": {
+            "type": "boolean",
+            "example": true
+          },
+          "endReason": {
+            "type": "string",
+            "example": "AI",
+            "enum": [
+              "AI",
+              "USER",
+              "MAX_TURNS"
+            ],
+            "nullable": true
+          },
+          "suggestedReplies": {
+            "$ref": "#/components/schemas/SuggestedReplies"
+          }
+        }
+      },
+      "SuggestedReplies": {
+        "type": "array",
+        "description": "입력창에 넣어 편집할 수 있는 추천 답변입니다. 대화가 끝나면 빈 배열입니다.",
+        "maxItems": 3,
+        "items": {
+          "type": "string",
+          "maxLength": 160
+        }
+      },
+      "HintsResponse": {
+        "type": "object",
+        "required": [
+          "direction",
+          "keywords"
+        ],
+        "properties": {
+          "direction": {
+            "type": "string",
+            "example": "가능한 시간과 업무 범위를 짧게 말해 보세요."
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "토요일 오전"
+            }
+          }
+        }
+      },
+      "ReportResponse": {
+        "type": "object",
+        "required": [
+          "totalScore",
+          "scoreScale",
+          "summary",
+          "items",
+          "sentenceComparisons"
+        ],
+        "properties": {
+          "totalScore": {
+            "type": "integer",
+            "example": 89,
+            "minimum": 0,
+            "maximum": 100
+          },
+          "scoreScale": {
+            "type": "integer",
+            "example": 100
+          },
+          "summary": {
+            "type": "string",
+            "example": "가능한 시간과 업무 범위를 분명히 전달했어요."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "criterion",
+                "score",
+                "comment"
+              ],
+              "properties": {
+                "criterion": {
+                  "type": "string",
+                  "example": "CLARITY",
+                  "enum": [
+                    "CLARITY",
+                    "LIMIT_CONDITION",
+                    "CONSISTENCY",
+                    "RESPECT",
+                    "HABIT",
+                    "ALTERNATIVE"
+                  ]
+                },
+                "score": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "example": 85
+                },
+                "comment": {
+                  "type": "string",
+                  "example": "도울 수 있는 시간을 분명하게 말했어요."
+                }
+              }
+            }
+          },
+          "sentenceComparisons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "original",
+                "improved"
+              ],
+              "properties": {
+                "original": {
+                  "type": "string",
+                  "example": "토요일에 잠깐 가능해요."
+                },
+                "improved": {
+                  "type": "string",
+                  "example": "토요일 오전 두 시간만 가능해요."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "example": "conflictContext는 필수입니다."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
