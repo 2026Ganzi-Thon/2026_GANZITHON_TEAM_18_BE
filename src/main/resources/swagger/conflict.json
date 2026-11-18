@@ -1,0 +1,738 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "말사이 충돌 정리 API",
+    "version": "1.0.0",
+    "description": "부탁받은 상황을 챗봇으로 정리하고(요청1), 추천 대응을 내려주며(요청2), 메시지 초안을 만듭니다. 서버는 아무것도 저장하지 않으므로 FE가 profile과 대화 내역을 매 요청에 보냅니다. 요청 본문은 최대 96 KiB입니다."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/v1/conflicts/chat": {
+      "post": {
+        "tags": [
+          "충돌 정리"
+        ],
+        "operationId": "conflictChat",
+        "summary": "상황 입력 챗봇",
+        "description": "messages가 빈 배열이면 AI 호출 없이 첫 인사와 첫 추천 태그를 바로 내려줍니다. 마지막 메시지는 USER여야 합니다.\n\nnewSchedules·newRoles에는 BE가 id(UUID)를 붙여 내려주며, FE는 그대로 profile에 추가합니다. summary.relatedScheduleIds는 기존 일정 id와 같은 응답의 newSchedules id를 함께 참조할 수 있습니다.\n\nisInputComplete가 true면 대응 선택 화면으로 이동하고, recommendation을 상단 한 줄에 표시합니다(드물게 null일 수 있음).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "examples": {
+                "첫 요청": {
+                  "value": {
+                    "profile": {
+                      "schedules": [],
+                      "roles": []
+                    },
+                    "mood": null,
+                    "messages": []
+                  }
+                },
+                "대화 중": {
+                  "value": {
+                    "profile": {
+                      "schedules": [
+                        {
+                          "id": "s-1",
+                          "title": "중간고사",
+                          "repeatType": "PERIOD",
+                          "daysOfWeek": null,
+                          "startDate": "2026-11-18",
+                          "endDate": "2026-11-21",
+                          "startTime": null,
+                          "endTime": null,
+                          "durationMinutes": null
+                        }
+                      ],
+                      "roles": [
+                        {
+                          "id": "r-1",
+                          "organization": "동아리",
+                          "roleName": "총무"
+                        }
+                      ]
+                    },
+                    "mood": "WORRY",
+                    "messages": [
+                      {
+                        "sender": "AI",
+                        "content": "어떤 부탁을 받으셨나요? 누가, 무엇을, 언제까지 해 달라고 했는지 편하게 말해 주세요."
+                      },
+                      {
+                        "sender": "USER",
+                        "content": "동아리 선배가 금요일까지 행사 정산 자료 정리해 달래. 근데 목요일에 팀플 발표도 있어"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                },
+                "example": {
+                  "aiMessage": "중간고사 기간에 팀플 발표까지 겹치네요. 정산 자료는 어느 정도 걸릴 것 같아요?",
+                  "summary": {
+                    "counterpartName": null,
+                    "relationCategory": "SENIOR",
+                    "relationDetail": "동아리 선배",
+                    "requestContent": "행사 정산 자료 정리",
+                    "deadlineText": "금요일까지",
+                    "deadlineAt": "2026-11-20T23:59:00+09:00",
+                    "estimatedMinutes": null,
+                    "psychologicalContext": null,
+                    "relatedScheduleIds": [
+                      "s-1",
+                      "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    ]
+                  },
+                  "newSchedules": [
+                    {
+                      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "title": "팀플 발표",
+                      "repeatType": "ONCE",
+                      "daysOfWeek": null,
+                      "startDate": "2026-11-19",
+                      "endDate": null,
+                      "startTime": null,
+                      "endTime": null,
+                      "durationMinutes": null
+                    }
+                  ],
+                  "newRoles": [],
+                  "suggestedTags": [
+                    {
+                      "label": "2~3시간 걸려요",
+                      "prompt": "정산 자료는 2~3시간 정도 걸릴 것 같아"
+                    },
+                    {
+                      "label": "거절하기 부담돼요",
+                      "prompt": "선배라서 거절하기가 부담돼"
+                    }
+                  ],
+                  "isInputComplete": false,
+                  "recommendation": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "입력값 또는 JSON이 올바르지 않습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "입력값 또는 JSON이 올바르지 않습니다."
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문은 최대 96 KiB입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "요청 본문은 최대 96 KiB입니다."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_BUSY",
+                    "message": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AI 응답을 처리하지 못했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_ERROR",
+                    "message": "AI 응답을 처리하지 못했습니다."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI 응답 시간이 초과됐습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_TIMEOUT",
+                    "message": "AI 응답 시간이 초과됐습니다."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conflicts/drafts": {
+      "post": {
+        "tags": [
+          "충돌 정리"
+        ],
+        "operationId": "conflictDraft",
+        "summary": "메시지 초안 생성·수정",
+        "description": "첫 생성: currentDraft는 null, messages는 []. 수정: currentDraft에 최신 초안, messages에 초안 수정 대화(마지막은 USER의 수정 요청). availableCondition은 responseType이 CONDITIONAL일 때 필수입니다.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftRequest"
+              },
+              "examples": {
+                "첫 생성": {
+                  "value": {
+                    "summary": {
+                      "counterpartName": "민지 선배",
+                      "relationCategory": "SENIOR",
+                      "relationDetail": "동아리 선배",
+                      "requestContent": "행사 정산 자료 정리",
+                      "deadlineText": "금요일까지",
+                      "deadlineAt": "2026-11-20T23:59:00+09:00",
+                      "estimatedMinutes": 150,
+                      "psychologicalContext": "선배라서 거절하기 부담됨",
+                      "relatedScheduleIds": [
+                        "s-1"
+                      ]
+                    },
+                    "relatedSchedules": [
+                      {
+                        "id": "s-1",
+                        "title": "중간고사",
+                        "repeatType": "PERIOD",
+                        "startDate": "2026-11-18",
+                        "endDate": "2026-11-21"
+                      }
+                    ],
+                    "responseType": "CONDITIONAL",
+                    "availableCondition": "토요일 오전 2시간만 가능",
+                    "currentDraft": null,
+                    "messages": []
+                  }
+                },
+                "수정 요청": {
+                  "value": {
+                    "summary": {
+                      "relationCategory": "SENIOR",
+                      "requestContent": "행사 정산 자료 정리"
+                    },
+                    "relatedSchedules": [],
+                    "responseType": "CONDITIONAL",
+                    "availableCondition": "토요일 오전 2시간만 가능",
+                    "currentDraft": "선배님, 이번 주는 시험이라 토요일 오전 2시간만 가능할 것 같아요.",
+                    "messages": [
+                      {
+                        "sender": "USER",
+                        "content": "조금 더 부드럽게 바꿔줘"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftResponse"
+                },
+                "example": {
+                  "draft": "선배님, 정산 자료 부탁 주셔서 감사해요. 이번 주가 중간고사라 평일은 어렵고, 토요일 오전 2시간 정도는 도와드릴 수 있을 것 같아요. 괜찮으실까요?",
+                  "aiMessage": "가능한 시간을 넣어서 초안을 작성했어요."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "입력값 또는 JSON이 올바르지 않습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "입력값 또는 JSON이 올바르지 않습니다."
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "요청 본문은 최대 96 KiB입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "PAYLOAD_TOO_LARGE",
+                    "message": "요청 본문은 최대 96 KiB입니다."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_BUSY",
+                    "message": "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AI 응답을 처리하지 못했습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_ERROR",
+                    "message": "AI 응답을 처리하지 못했습니다."
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI 응답 시간이 초과됐습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "AI_TIMEOUT",
+                    "message": "AI 응답 시간이 초과됐습니다."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatRequest": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "schedules": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "$ref": "#/components/schemas/Schedule"
+                }
+              },
+              "roles": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "mood": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "JOY",
+              "SADNESS",
+              "ANGER",
+              "WORRY",
+              "NEUTRAL"
+            ]
+          },
+          "messages": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "required": [
+          "aiMessage",
+          "summary",
+          "newSchedules",
+          "newRoles",
+          "suggestedTags",
+          "isInputComplete",
+          "recommendation"
+        ],
+        "properties": {
+          "aiMessage": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ConflictSummary"
+          },
+          "newSchedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Schedule"
+            }
+          },
+          "newRoles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            }
+          },
+          "suggestedTags": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "prompt": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "isInputComplete": {
+            "type": "boolean"
+          },
+          "recommendation": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "responseType": {
+                "type": "string",
+                "enum": [
+                  "ACCEPT",
+                  "CONDITIONAL",
+                  "DECLINE"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "DraftRequest": {
+        "type": "object",
+        "required": [
+          "summary",
+          "responseType"
+        ],
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/ConflictSummary"
+          },
+          "relatedSchedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Schedule"
+            }
+          },
+          "responseType": {
+            "type": "string",
+            "enum": [
+              "ACCEPT",
+              "CONDITIONAL",
+              "DECLINE"
+            ]
+          },
+          "availableCondition": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentDraft": {
+            "type": "string",
+            "nullable": true
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
+      },
+      "DraftResponse": {
+        "type": "object",
+        "required": [
+          "draft",
+          "aiMessage"
+        ],
+        "properties": {
+          "draft": {
+            "type": "string"
+          },
+          "aiMessage": {
+            "type": "string"
+          }
+        }
+      },
+      "ConflictSummary": {
+        "type": "object",
+        "properties": {
+          "counterpartName": {
+            "type": "string",
+            "nullable": true
+          },
+          "relationCategory": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "COLLEAGUE",
+              "SENIOR",
+              "JUNIOR",
+              "FRIEND",
+              "PARTNER",
+              "FAMILY",
+              "OTHER"
+            ]
+          },
+          "relationDetail": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestContent": {
+            "type": "string",
+            "nullable": true
+          },
+          "deadlineText": {
+            "type": "string",
+            "nullable": true
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "estimatedMinutes": {
+            "type": "integer",
+            "nullable": true
+          },
+          "psychologicalContext": {
+            "type": "string",
+            "nullable": true
+          },
+          "relatedScheduleIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Schedule": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "repeatType"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "s-1"
+          },
+          "title": {
+            "type": "string",
+            "example": "중간고사"
+          },
+          "repeatType": {
+            "type": "string",
+            "enum": [
+              "WEEKLY",
+              "ONCE",
+              "PERIOD"
+            ]
+          },
+          "daysOfWeek": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "MON",
+                "TUE",
+                "WED",
+                "THU",
+                "FRI",
+                "SAT",
+                "SUN"
+              ]
+            }
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-11-18"
+          },
+          "endDate": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-11-21"
+          },
+          "startTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "18:00"
+          },
+          "endTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "22:00"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "required": [
+          "id",
+          "organization",
+          "roleName"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "r-1"
+          },
+          "organization": {
+            "type": "string",
+            "example": "동아리"
+          },
+          "roleName": {
+            "type": "string",
+            "example": "총무"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": [
+          "sender",
+          "content"
+        ],
+        "properties": {
+          "sender": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "AI"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 1500
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

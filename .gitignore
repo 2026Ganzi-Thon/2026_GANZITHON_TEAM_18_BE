@@ -1,0 +1,15 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ (실행 구성에 API 키가 들어갈 수 있으므로 반드시 제외)
+.idea/
+*.iml
+out/
+
+# 환경 변수
+.env
+
+# OS
+.DS_Store
