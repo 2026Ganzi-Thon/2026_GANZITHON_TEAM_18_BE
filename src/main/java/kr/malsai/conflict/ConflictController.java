@@ -73,17 +73,22 @@ class ConflictController {
             - deadlineText: 사용자가 말한 마감 표현 그대로. 모르면 null
             - deadlineAt: today를 기준으로 마감을 확실히 계산할 수 있을 때만 +09:00 시간대의 ISO 8601. 시각이 없으면 23:59. 애매하면 null
             - estimatedMinutes: 부탁받은 일에 걸릴 예상 시간(분). 모르면 null
-            - psychologicalContext: 관계 걱정, 업무 부담 등 사용자가 표현한 마음. 없으면 null
+            - psychologicalContext: 관계 걱정, 업무 부담 등 사용자가 대화에서 직접 표현한 마음. mood만 보고 지어내지 않는다. 없으면 null
             - relatedScheduleIds: 부탁받은 일과 시간이 겹치거나 영향을 받는 사용자 일정의 id
             profile.schedules와 profile.roles는 이미 저장된 사용자 일정·역할이다.
-            사용자가 저장되지 않은 자기 일정을 말하면 newSchedules에 넣는다. tempId는 "new-0", "new-1"처럼 붙이고,
-            그 일정이 부탁과 겹치면 relatedScheduleIds에 tempId를 그대로 넣는다. 이미 저장된 일정은 newSchedules에 다시 넣지 않는다.
+            사용자가 자기 일정(시험, 발표, 과제, 알바, 회의, 약속 등)을 말했는데 profile.schedules에 같은 일정이 없으면
+            반드시 newSchedules에 넣는다. 날짜나 시간을 모르면 그 값만 null로 둔다.
+            tempId는 "new-0", "new-1"처럼 붙이고, 그 일정이 부탁 기간과 겹치면 relatedScheduleIds에 tempId를 그대로 넣는다.
+            이미 저장된 일정은 newSchedules에 다시 넣지 않는다.
+            예: today가 2026-11-18(수)이고 사용자가 "목요일에 팀플 발표도 있어"라고 하면
+            newSchedules에 {"tempId":"new-0","title":"팀플 발표","repeatType":"ONCE","startDate":"2026-11-19"}를 넣고
+            relatedScheduleIds에 "new-0"을 넣는다.
             일정 형식: repeatType은 WEEKLY(매주 반복, daysOfWeek에 MON~SUN), ONCE(하루, startDate), PERIOD(기간, startDate~endDate).
             날짜는 YYYY-MM-DD, 시각은 HH:mm, 모르는 값은 null.
             사용자가 저장되지 않은 자기 역할(소속과 맡은 역할)을 말하면 newRoles에 {organization, roleName}으로 넣는다.
             aiMessage에는 아직 모르는 정보 중 하나만 자연스럽게 묻는 한두 문장을 쓴다. 사용자의 마음을 단정하거나 평가하지 않는다.
             suggestedTags에는 aiMessage 질문에 사용자가 바로 답할 수 있는 선택지를 2~3개 넣는다.
-            label은 12자 이내의 짧은 버튼 문구, prompt는 사용자가 보낼 완성 문장(반말 구어체)이다.
+            label은 이모지 없이 12자 이내의 짧은 버튼 문구, prompt는 사용자가 보낼 완성 문장(반말 구어체)이다.
             requestContent, 관계, 마감, 예상 시간을 모두 알게 되면 isInputComplete를 true로 한다.
             isInputComplete가 true면 aiMessage에 정리 내용을 한 문장으로 요약하고 대응을 골라 보자고 안내한다.
             이때 recommendation에 ACCEPT(일정 부담이 거의 없음), CONDITIONAL(일부 겹쳐 조건이 필요함), DECLINE(감당하기 어려움) 중
@@ -213,7 +218,7 @@ class ConflictController {
         List<Tag> tags = new ArrayList<>();
         if (!complete) {
             for (JsonNode t : arrayOrEmpty(result, "suggestedTags")) {
-                String label = text(t, "label", 20);
+                String label = stripSymbols(text(t, "label", 20));
                 String prompt = text(t, "prompt", 100);
                 if (label == null || prompt == null) continue;
                 if (tags.stream().noneMatch(x -> x.label().equals(label))) tags.add(new Tag(label, prompt));
@@ -469,6 +474,13 @@ class ConflictController {
         if (!value.isNumber() || !Double.isFinite(value.asDouble())) return null;
         long rounded = Math.round(value.asDouble());
         return rounded >= 1 && rounded <= 100_000 ? (int) rounded : null;
+    }
+
+    /** 버튼 문구에 붙은 이모지·기호 제거 (예: "✓ 범위 알려주기" → "범위 알려주기"). */
+    private static String stripSymbols(String text) {
+        if (text == null) return null;
+        String cleaned = text.replaceAll("[\\p{So}\\p{Sk}\\p{Cs}\\x{FE0F}\\x{200D}]", "").strip();
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     private static String normalize(String text) {
