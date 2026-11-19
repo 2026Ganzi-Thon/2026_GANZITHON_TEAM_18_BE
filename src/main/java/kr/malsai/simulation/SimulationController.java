@@ -2,9 +2,13 @@ package kr.malsai.simulation;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.CacheControl;
@@ -20,7 +24,10 @@ import tools.jackson.databind.ObjectReader;
 @RestController
 @RequestMapping("/api/v1/simulations")
 class SimulationController {
+    private static final int MIN_TURNS = 3;
     private static final int MAX_TURNS = 20;
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter ROLEPLAY_DATE = DateTimeFormatter.ofPattern("uuuu-MM-dd(E)", Locale.KOREAN);
     private static final int SCORE_SCALE = 100;
     private static final int MAX_BODY_BYTES = 96 * 1024;
     private static final int MAX_MESSAGE_LENGTH = 1500;
@@ -30,6 +37,7 @@ class SimulationController {
             상대는 requestContent의 일을 부탁한 사람이다. 그 일을 맡겠다고 답하는 쪽은 사용자다.
             사용자의 가능 시간을 상대 본인의 가능 시간처럼 말하지 않는다.
             상대의 관계, 성격, 말투와 situationType을 반영한다.
+            scenario.currentDate는 한국 표준시 기준 오늘 날짜다. deadlineText의 상대적 날짜나 요일을 말할 때 이 날짜를 기준으로 판단한다.
             """;
     private static final String QUICK_REPLIES = """
             suggestedReplies에는 사용자가 다음에 보낼 수 있는 서로 다른 짧은 한국어 문장을 최대 3개 넣는다.
@@ -88,7 +96,7 @@ class SimulationController {
                 Map.of("aiMessage", limit ? "알겠어. 여기서 마무리하자." : "그럼 어디까지 도와줄 수 있어?",
                         "shouldEnd", limit, "suggestedReplies", List.of("어떤 부분이 가장 급한가요?", "제가 가능한 범위만 먼저 말씀드릴게요.")));
         if (!result.path("shouldEnd").isBoolean()) throw SimulationFailure.aiError();
-        boolean ended = result.path("shouldEnd").asBoolean();
+        boolean ended = userMessages.size() >= MIN_TURNS && result.path("shouldEnd").asBoolean();
         return new ChatResponse(outputText(result, "aiMessage"), limit || ended, limit ? "MAX_TURNS" : ended ? "AI" : null,
                 limit || ended ? List.of() : suggestedReplies(result));
     }
@@ -169,7 +177,7 @@ class SimulationController {
                 "availableCondition", context.path("availableCondition"));
     }
 
-    private static Map<String, JsonNode> roleplayContext(JsonNode setup) {
+    private static Map<String, Object> roleplayContext(JsonNode setup) {
         JsonNode summary = setup.path("conflictContext").path("summary");
         JsonNode contact = setup.path("contact");
         return Map.of(
@@ -181,7 +189,8 @@ class SimulationController {
                 "recipientName", setup.path("userName"),
                 "situationType", setup.path("situationType"),
                 "requestContent", summary.path("requestContent"),
-                "deadlineText", summary.path("deadlineText"));
+                "deadlineText", summary.path("deadlineText"),
+                "currentDate", LocalDate.now(KST).format(ROLEPLAY_DATE));
     }
 
     private static JsonNode setup(JsonNode body) {
